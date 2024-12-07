@@ -349,20 +349,20 @@ public class IndexManager {
         }
     
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            // Read the header to find the root block ID
+            //find root block id
             byte[] header = new byte[512];
             raf.seek(0);
             raf.readFully(header);
             ByteBuffer headerBuffer = ByteBuffer.wrap(header);
     
-            headerBuffer.position(8); // Skip the magic number
+            headerBuffer.position(8); 
             long rootBlockId = headerBuffer.getLong();
             if (rootBlockId == 0) {
                 System.out.println("The tree is empty.");
                 return;
             }
     
-            // Search the tree starting from the root block
+            //search tree starting at root
             if (searchKeyInBlock(raf, rootBlockId, searchKey)) {
                 return;
             }
@@ -374,37 +374,37 @@ public class IndexManager {
     }
     
     private static boolean searchKeyInBlock(RandomAccessFile raf, long blockId, long searchKey) throws IOException {
-        long offset = (blockId - 1) * 512; // Adjust this based on block ID indexing (0 or 1-based) // Calculate block offset
+        long offset = (blockId - 1) * 512; //block offset calculation
         raf.seek(offset);
     
         byte[] block = new byte[512];
-        raf.readFully(block); //here is the error
+        raf.readFully(block);
         ByteBuffer buffer = ByteBuffer.wrap(block);
     
-        // Read block fields
-        buffer.getLong(); // Skip block ID
-        buffer.getLong(); // Skip parent block ID
+        //read block fields
+        buffer.getLong(); //skip blokc ids
+        buffer.getLong(); 
         long numKeyValuePairs = buffer.getLong();
 
-        // Read keys
+        //read keys
         long[] keys = new long[19];
         for (int i = 0; i < 19; i++) {
             keys[i] = buffer.getLong();
         }
     
-        // Read values
+        //read values
         long[] values = new long[19];
         for (int i = 0; i < 19; i++) {
             values[i] = buffer.getLong();
         }
     
-        // Read child pointers
+        //read children pointers
         long[] childPointers = new long[20];
         for (int i = 0; i < 20; i++) {
             childPointers[i] = buffer.getLong();
         }
     
-        // Search for the key
+        //search for the key
         for (int i = 0; i < numKeyValuePairs; i++) {
             if (keys[i] == searchKey) {
                 System.out.println("Key: " + keys[i] + ", Value: " + values[i]);
@@ -412,20 +412,16 @@ public class IndexManager {
             }
     
             if (searchKey < keys[i] && childPointers[i] != 0) {
-                // If the searchKey is less than the current key, recurse into the left child
+                //if searchkey less, go to left child
                 return searchKeyInBlock(raf, childPointers[i], searchKey);
             }
         }
     
-        // If the searchKey is greater than all keys, check the last child pointer
+        //if search key greater, check last child pointer
         if (childPointers[(int) numKeyValuePairs] != 0) {
             return searchKeyInBlock(raf, childPointers[(int) numKeyValuePairs], searchKey);
         }
     
         return false;
     }
-    
-    
-    
-    
 }
