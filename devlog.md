@@ -26,4 +26,9 @@
   offset during each recruive search functionc call.
 
 ### 12/7/2024 3:28pm MAJOR BUGFIX
-  Fixed previous bug by changing offset from blockID * 512 to (blockID - 1) * 512. Changes have been committed, and this completes the search functionality.
+  Fixed previous bug by changing offset from blockID * 512 to (blockID - 1) * 512. Changes have been committed, and this completes the search     functionality.
+
+
+## 12/7/2024 5:55pm SESSION 3
+  Took a break, will attempt to finish project this session. Just need to implement load and extract features, as well as finish some input validation
+  checks.
