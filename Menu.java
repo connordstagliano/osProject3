@@ -29,7 +29,7 @@ public class Menu {
                     break;
 
                 case "INSERT":                       
-                    System.out.println("inserting");
+                    idxMan.insertIntoBTree();
                     break;
 
                 case "SEARCH":                          
@@ -41,7 +41,7 @@ public class Menu {
                     break;
 
                 case "PRINT":
-                    System.out.println("printing");
+                    idxMan.printContents();
                     break;
 
                 case "EXTRACT":

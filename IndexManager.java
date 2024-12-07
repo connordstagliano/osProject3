@@ -1,15 +1,20 @@
-import java.util.Arrays;
 import java.util.Scanner;
+import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 
 public class IndexManager {
     Scanner scan = new Scanner(System.in);
     private static File curFile = null; //currently open index file
+    private static final int BLOCK_SIZE = 512;
+    private static final int MAX_KEYS = 19;
+    private static final int MAX_CHILDREN = 20;
+
 
     //CREATE METHOD
     public void createOrOverwriteIndexFile() {
@@ -92,46 +97,238 @@ public class IndexManager {
         } catch (IOException e) {
             System.err.println("An error occurred while creating or writing to the file: " + e.getMessage());
         }
-        printHeaderContents(curFile);
     }
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //PRINT METHODs
+    public void printContents() {
+        File file = curFile;
 
-    ///////////////////PRINT HEADER
-     public static void printHeaderContents(File f) {
-
-        // Check if the file exists
-        if (!f.exists()) {
-            System.err.println("Error: The file does not exist.");
+        if (!file.exists()) {
+            System.err.println("Error: File does not exist");
             return;
         }
 
-        try (FileInputStream fis = new FileInputStream(f)) {
-            byte[] header = new byte[512];
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+            System.out.println("\nHEADER\n");
+            printHeader(raf);
 
-            // Read the first 512 bytes (header)
-            int bytesRead = fis.read(header);
-            if (bytesRead < 512) {
-                System.err.println("Error: The file header is incomplete or corrupted.");
-                return;
+            System.out.println("\nINDEX");
+            long fileLength = raf.length();
+            int blockNumber = 1; //header is "block 0"
+            while (BLOCK_SIZE * blockNumber <= fileLength) {
+                System.out.println("\nBlock " + blockNumber + ":");
+                printBlock(raf, blockNumber);
+                blockNumber++;
+            }
+        } catch (IOException e) {
+            System.err.println("Error reading file: " + e.getMessage());
+        }
+    }
+
+    private static void printHeader(RandomAccessFile raf) throws IOException {
+        byte[] header = new byte[BLOCK_SIZE];
+        raf.seek(0);
+        raf.readFully(header);
+        ByteBuffer buffer = ByteBuffer.wrap(header);
+
+        //read header
+        byte[] magicNumberBytes = new byte[8];
+        buffer.get(magicNumberBytes);
+
+        long rootBlockId = buffer.getLong();
+        long nextBlockId = buffer.getLong();
+
+        System.out.println("Root Block ID: " + rootBlockId);
+        System.out.println("Next Block ID: " + nextBlockId);
+    }
+
+    private static void printBlock(RandomAccessFile raf, int blockNumber) throws IOException {
+        long offset = (long) (blockNumber - 1) * BLOCK_SIZE;
+        raf.seek(offset);
+    
+        byte[] block = new byte[BLOCK_SIZE];
+        raf.readFully(block);
+        ByteBuffer buffer = ByteBuffer.wrap(block);
+    
+        //read block fields
+        long blockId = buffer.getLong();
+        long parentBlockId = buffer.getLong();
+        long numKeyValuePairs = buffer.getLong();
+    
+        System.out.println("Block ID: " + blockId);
+        //System.out.println("Parent Block ID: " + parentBlockId);
+        //System.out.println("Number of Key/Value Pairs: " + numKeyValuePairs);
+    
+        //read keys
+        long[] keys = new long[19];
+        for (int i = 0; i < 19; i++) {
+            keys[i] = buffer.getLong();
+        }
+    
+        //read values
+        long[] values = new long[19];
+        for (int i = 0; i < 19; i++) {
+            values[i] = buffer.getLong();
+        }
+    
+        //read child pointers
+        long[] childPointers = new long[20];
+        for (int i = 0; i < 20; i++) {
+            childPointers[i] = buffer.getLong();
+        }
+    
+        //print key, value pairs
+        System.out.println("Key/Value Pairs:");
+        for (int i = 0; i < 19; i++) {
+            if (keys[i] != 0) { //print non zero keys
+                System.out.println("\tKey: " + keys[i] + ", Value: " + values[i]);
+            }
+        }
+    }
+
+    //INSERT METHODs
+    public void insertIntoBTree() {
+        File file = curFile;
+
+        if (!file.exists()) {
+            System.err.println("Error: Index file does not exist");
+            return;
+        }
+
+        try (RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
+            long rootBlockId = readRootBlockId(raf);
+            long nextBlockId = readNextBlockId(raf);
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+            System.out.print("Enter the key (unsigned integer): ");
+            long key = Long.parseUnsignedLong(reader.readLine());
+            System.out.print("Enter the value (unsigned integer): ");
+            long value = Long.parseUnsignedLong(reader.readLine());
+
+            if (rootBlockId == 0) {
+                //if tree is empty
+                createNewRoot(raf, key, value, nextBlockId);
+            } else {
+                if (!insertIntoNode(raf, rootBlockId, key, value)) {
+                    System.out.println("Error: Key already exists in the tree");
+                }
             }
 
-            // Parse and display the header contents
-            // Magic Number
-            String magicNumber = new String(Arrays.copyOfRange(header, 0, 8)).trim();
-            System.out.println("Magic Number: " + magicNumber);
-
-            // Root Node Block ID
-            long rootNodeId = ByteBuffer.wrap(Arrays.copyOfRange(header, 8, 16)).getLong();
-            System.out.println("Root Node Block ID: " + rootNodeId);
-
-            // Next Block ID
-            long nextBlockId = ByteBuffer.wrap(Arrays.copyOfRange(header, 16, 24)).getLong();
-            System.out.println("Next Block ID: " + nextBlockId);
-
-            // Unused bytes
-            System.out.println("Unused Bytes: " + Arrays.toString(Arrays.copyOfRange(header, 24, 512)));
-
-        } catch (IOException e) {
-            System.err.println("An error occurred while reading the file: " + e.getMessage());
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("Error during insertion: " + e.getMessage());
         }
+    }
+
+    private static long readRootBlockId(RandomAccessFile raf) throws IOException {
+        raf.seek(8); //root block offset 8 in header
+        return raf.readLong();
+    }
+
+    private static long readNextBlockId(RandomAccessFile raf) throws IOException {
+        raf.seek(16); //next block offset 16 in header
+        return raf.readLong();
+    }
+
+    private static void createNewRoot(RandomAccessFile raf, long key, long value, long nextBlockId) throws IOException {
+        byte[] newBlock = new byte[BLOCK_SIZE];
+        ByteBuffer buffer = ByteBuffer.wrap(newBlock);
+
+        //fill new root block
+        buffer.putLong(nextBlockId); //cur block id
+        buffer.putLong(0); //parent block id (0 for parent of root)
+        buffer.putLong(1); //number of key, value pairs
+        buffer.putLong(key); //first key
+        for (int i = 1; i < MAX_KEYS; i++) buffer.putLong(0); //remaining keys
+        buffer.putLong(value); //first value
+        for (int i = 1; i < MAX_KEYS; i++) buffer.putLong(0); //remaining values
+        for (int i = 0; i < MAX_CHILDREN; i++) buffer.putLong(0); //child pointers
+
+        //write new root to file
+        raf.seek((nextBlockId - 1) * BLOCK_SIZE);
+        raf.write(newBlock);
+
+        //update header
+        raf.seek(8); 
+        raf.writeLong(nextBlockId);
+        raf.seek(16); 
+        raf.writeLong(nextBlockId + 1);
+
+        System.out.println("Inserted key " + key + " with value " + value + " as new root");
+    }
+
+    private static boolean insertIntoNode(RandomAccessFile raf, long blockId, long key, long value) throws IOException {
+        byte[] block = readBlock(raf, blockId);
+        ByteBuffer buffer = ByteBuffer.wrap(block);
+
+        //parse block
+        buffer.position(16); //skip block and parent ids
+        int numPairs = (int) buffer.getLong();
+        long[] keys = new long[MAX_KEYS];
+        long[] values = new long[MAX_KEYS];
+        long[] children = new long[MAX_CHILDREN];
+
+        for (int i = 0; i < MAX_KEYS; i++) keys[i] = buffer.getLong();
+        for (int i = 0; i < MAX_KEYS; i++) values[i] = buffer.getLong();
+        for (int i = 0; i < MAX_CHILDREN; i++) children[i] = buffer.getLong();
+
+        //check if duplicate key
+        for (int i = 0; i < numPairs; i++) {
+            if (keys[i] == key) {
+                return false; //key already in tree
+            }
+        }
+
+        //find correct child pointer
+        int childIndex = 0;
+        while (childIndex < numPairs && key > keys[childIndex]) {
+            childIndex++;
+        }
+
+        if (children[childIndex] == 0) {
+            //insert into leaf
+            insertKeyValueIntoLeaf(raf, blockId, key, value, keys, values, numPairs);
+        } else {
+            //go to child
+            return insertIntoNode(raf, children[childIndex], key, value);
+        }
+
+        return true;
+    }
+
+    private static void insertKeyValueIntoLeaf(RandomAccessFile raf, long blockId, long key, long value,
+                                               long[] keys, long[] values, int numPairs) throws IOException {
+       //insert in sorted order in leaf
+        int pos = numPairs;
+        while (pos > 0 && keys[pos - 1] > key) {
+            keys[pos] = keys[pos - 1];
+            values[pos] = values[pos - 1];
+            pos--;
+        }
+        keys[pos] = key;
+        values[pos] = value;
+
+        //update block
+        byte[] block = new byte[BLOCK_SIZE];
+        ByteBuffer buffer = ByteBuffer.wrap(block);
+
+        buffer.putLong(blockId); //block id
+        buffer.putLong(0); //parent block id
+        buffer.putLong(numPairs + 1); //udpate num of key value pairs
+
+        for (long k : keys) buffer.putLong(k);
+        for (long v : values) buffer.putLong(v);
+        for (int i = 0; i < MAX_CHILDREN; i++) buffer.putLong(0); 
+
+        raf.seek((blockId - 1) * BLOCK_SIZE);
+        raf.write(block);
+
+        System.out.println("Inserted key " + key + " with value " + value + " into block " + blockId);
+    }
+
+    private static byte[] readBlock(RandomAccessFile raf, long blockId) throws IOException {
+        byte[] block = new byte[BLOCK_SIZE];
+        raf.seek((blockId - 1) * BLOCK_SIZE);
+        raf.readFully(block);
+        return block;
     }
 }
