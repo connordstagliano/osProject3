@@ -20,3 +20,7 @@
 ## 12/7/2024 1:59pm SECOND MAJOR COMMIT
   Compelted insertion functionality. It is very difficult to test and ensure that the nodes are correctly inserted into the tree, but based on what I ahve seen, it appears to work mostly correctly.
   Now it is time to implement the rest of the "minor" features, which will complete the functionality of the program. I also need to not forget to add a little bit of input validiation.
+
+## 12/7/2024 3:08pm MAJOR BUG ENCOUNTER
+  Encountered a bug when writing the search function that causes the file to be read incorrectly. Thinking that it has something to do with the calculated
+  offset during each recruive search functionc call.
