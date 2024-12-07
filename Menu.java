@@ -33,7 +33,7 @@ public class Menu {
                     break;
 
                 case "SEARCH":                          
-                    System.out.println("searching");
+                    idxMan.searchCall();
                     break;
 
                 case "LOAD":
