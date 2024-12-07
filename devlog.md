@@ -24,3 +24,6 @@
 ## 12/7/2024 3:08pm MAJOR BUG ENCOUNTER
   Encountered a bug when writing the search function that causes the file to be read incorrectly. Thinking that it has something to do with the calculated
   offset during each recruive search functionc call.
+
+### 12/7/2024 3:28pm MAJOR BUGFIX
+  Fixed previous bug by changing offset from blockID * 512 to (blockID - 1) * 512. Changes have been committed, and this completes the search functionality.
