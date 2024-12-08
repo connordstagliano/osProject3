@@ -1,8 +1,12 @@
 import java.util.Scanner;
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -32,9 +36,13 @@ public class IndexManager {
         try {
             //notifying if file exists or not
             if (file.exists()) {
-                System.out.println("File already exists, overwriting to empty");
-            } else {
-                System.out.println("Creating new file");
+                System.out.print("File already exists, overwrite? (yes/no): ");
+                scan = new Scanner(System.in); //clear scanner
+                String response = scan.nextLine();
+                if (!response.equalsIgnoreCase("yes")) {
+                    System.out.println("Creation cancelled");
+                    return;
+                }
             }
 
             //creating file
@@ -103,6 +111,10 @@ public class IndexManager {
     ////////////////////////////////////////////////////////PRINT METHODs
     public void printContents() {
         File file = curFile;
+        if(file == null) {
+            System.out.println("Null file, cannot perform operation");
+            return;
+        }
 
         if (!file.exists()) {
             System.err.println("Error: File does not exist");
@@ -117,7 +129,7 @@ public class IndexManager {
             long fileLength = raf.length();
             int blockNumber = 1; //header is "block 0"
             while (BLOCK_SIZE * blockNumber <= fileLength) {
-                System.out.println("\nBlock " + blockNumber + ":");
+                System.out.println("\n\tBlock " + blockNumber + ":");
                 printBlock(raf, blockNumber);
                 blockNumber++;
             }
@@ -139,8 +151,8 @@ public class IndexManager {
         long rootBlockId = buffer.getLong();
         long nextBlockId = buffer.getLong();
 
-        System.out.println("Root Block ID: " + rootBlockId);
-        System.out.println("Next Block ID: " + nextBlockId);
+        System.out.println("\tRoot Block ID: " + rootBlockId);
+        System.out.println("\tNext Block ID: " + nextBlockId);
     }
 
     private static void printBlock(RandomAccessFile raf, int blockNumber) throws IOException {
@@ -156,7 +168,7 @@ public class IndexManager {
         long parentBlockId = buffer.getLong();
         long numKeyValuePairs = buffer.getLong();
     
-        System.out.println("Block ID: " + blockId);
+        System.out.println("\tBlock ID: " + blockId);
         //System.out.println("Parent Block ID: " + parentBlockId);
         //System.out.println("Number of Key/Value Pairs: " + numKeyValuePairs);
     
@@ -179,7 +191,7 @@ public class IndexManager {
         }
     
         //print key, value pairs
-        System.out.println("Key/Value Pairs:");
+        System.out.println("\tKey/Value Pairs:");
         for (int i = 0; i < 19; i++) {
             if (keys[i] != 0) { //print non zero keys
                 System.out.println("\tKey: " + keys[i] + ", Value: " + values[i]);
@@ -190,6 +202,10 @@ public class IndexManager {
     ////////////////////////////////////////////////////////////////INSERT METHODs
     public void insertIntoBTree() {
         File file = curFile;
+        if(file == null) {
+            System.out.println("Null file, cannot perform operation");
+            return;
+        }
 
         if (!file.exists()) {
             System.err.println("Error: Index file does not exist");
@@ -275,6 +291,7 @@ public class IndexManager {
         //check if duplicate key
         for (int i = 0; i < numPairs; i++) {
             if (keys[i] == key) {
+                System.out.println("Duplicate key, did not insert");
                 return false; //key already in tree
             }
         }
@@ -336,6 +353,10 @@ public class IndexManager {
     /////////////////////////////////////////////SEARCH METHODS
     public void searchCall(){
         File file = curFile;
+        if(file == null) {
+            System.out.println("Null file, cannot perform operation");
+            return;
+        }
         System.out.println("Enter search key: ");
         long searchKey = scan.nextLong();
         searchKeyInIndexFile(file, searchKey);
@@ -423,5 +444,182 @@ public class IndexManager {
         }
     
         return false;
+    }
+
+    /////////////////////////////////////EXTRACT METHODs
+    public void exportIndexToFile() {
+        File indexFile = curFile;
+        if(indexFile == null) {
+            System.out.println("Null file, cannot perform operation");
+            return;
+        }
+
+        if (!indexFile.exists()) {
+            System.err.println("Error: Index file does not exist");
+            return;
+        }
+
+        Scanner scan2 = new Scanner(System.in); //wasnt working when trying to use the scanner defined at top of class
+
+        //output file name prompt
+        System.out.print("Enter the name of the file to export to: ");
+        String exportFileName = scan2.nextLine();
+        File exportFile = new File(exportFileName);
+        //here is input validation for overwrrite/////////////////////////////
+        if (exportFile.exists()) {
+            System.out.print("File already exists, overwrite? (yes/no): ");
+            String response = scan2.nextLine();
+            if (!response.equalsIgnoreCase("yes")) {
+                System.out.println("Export canceled");
+                return;
+            }
+        }
+
+        try (RandomAccessFile raf = new RandomAccessFile(indexFile, "r");
+             BufferedWriter writer = new BufferedWriter(new FileWriter(exportFile))) {
+
+            //read header for root id
+            byte[] header = new byte[512];
+            raf.seek(0);
+            raf.readFully(header);
+            ByteBuffer headerBuffer = ByteBuffer.wrap(header);
+
+            headerBuffer.position(8); 
+            long rootBlockId = headerBuffer.getLong();
+
+            if (rootBlockId == 0) {
+                System.out.println("The tree is empty");
+                return;
+            }
+
+            //traverse and write pairs
+            exportNodeToWriter(raf, rootBlockId, writer);
+
+            System.out.println("Key value pairs successfully exported to " + exportFileName);
+        } catch (IOException e) {
+            System.err.println("Error exporting index: " + e.getMessage());
+        }
+    }
+
+    private static void exportNodeToWriter(RandomAccessFile raf, long blockId, BufferedWriter writer) throws IOException {
+        //calculate offset
+        long offset = (blockId - 1) * 512;
+        raf.seek(offset);
+
+        //read block
+        byte[] block = new byte[512];
+        raf.readFully(block);
+        ByteBuffer buffer = ByteBuffer.wrap(block);
+
+        //read block fields
+        long currentBlockId = buffer.getLong(); // Block ID
+        buffer.getLong(); // Parent Block ID (not used here)
+        long numKeyValuePairs = buffer.getLong();
+
+        //read keys
+        long[] keys = new long[19];
+        for (int i = 0; i < 19; i++) {
+            keys[i] = buffer.getLong();
+        }
+
+        //read values
+        long[] values = new long[19];
+        for (int i = 0; i < 19; i++) {
+            values[i] = buffer.getLong();
+        }
+
+        //read child pointers
+        long[] childPointers = new long[20];
+        for (int i = 0; i < 20; i++) {
+            childPointers[i] = buffer.getLong();
+        }
+
+        //write pairs to file
+        for (int i = 0; i < numKeyValuePairs; i++) {
+            writer.write(keys[i] + "," + values[i]);
+            writer.newLine();
+        }
+
+        //recursive call to export child nodes
+        for (int i = 0; i <= numKeyValuePairs; i++) {
+            if (childPointers[i] != 0) {
+                exportNodeToWriter(raf, childPointers[i], writer);
+            }
+        }
+    }
+
+    //////////////////////////////////LOAD METHODs
+    public void load() {
+        if(curFile == null) {
+            System.out.println("Null file, cannot perform operation");
+            return;
+        }
+
+        System.out.println("Enter file name to load from: ");
+        scan = new Scanner(System.in); //clear scanner
+        String fileName = scan.nextLine();
+        File file = new File(fileName);
+
+        if (!file.exists()) {
+            System.err.println("Error: File does not exist.");
+            return;
+        }
+
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line;
+            int lineNumber = 0;
+
+            while ((line = br.readLine()) != null) {
+                lineNumber++;
+                String[] parts = line.split(",");
+
+                if (parts.length != 2) {
+                    System.err.println("Skipping invalid line " + lineNumber + ": " + line);
+                    continue;
+                }
+
+                try {
+                    long key = Long.parseUnsignedLong(parts[0].trim());
+                    long value = Long.parseUnsignedLong(parts[1].trim());
+
+                    //call insertion method (key value parameter version)
+                    insertIntoBTree(key, value);
+                } catch (NumberFormatException e) {
+                    System.err.println("Invalid number on line " + lineNumber + ": " + line);
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Error reading file: " + e.getMessage());
+        }
+    }
+    //overwritten insertion method
+    public void insertIntoBTree(long key, long value) {
+        File file = curFile;
+        if(file == null) {
+            System.out.println("Null file, cannot perform operation");
+            return;
+        }
+
+        if (!file.exists()) {
+            System.err.println("Error: Index file does not exist");
+            return;
+        }
+
+        try (RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
+            long rootBlockId = readRootBlockId(raf);
+            long nextBlockId = readNextBlockId(raf);
+            
+            if (rootBlockId == 0) {
+                //if tree is empty
+                createNewRoot(raf, key, value, nextBlockId);
+            } else {
+                if (!insertIntoNode(raf, rootBlockId, key, value)) {
+                    System.out.println("Error: Key already exists in the tree");
+                }
+            }
+
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("Error during insertion: " + e.getMessage());
+        }
     }
 }

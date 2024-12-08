@@ -1,5 +1,12 @@
 import java.util.Scanner;
 
+/*
+ * 
+ * KNOWN BUGS
+ * extract only writes last block of data to file
+ * when printing an empty tree, program prints garbage block id for block 1
+ */
+
 public class Menu {
 
     //QUIT METHOD
@@ -37,7 +44,7 @@ public class Menu {
                     break;
 
                 case "LOAD":
-                    System.out.println("loading");
+                    idxMan.load();
                     break;
 
                 case "PRINT":
@@ -45,7 +52,7 @@ public class Menu {
                     break;
 
                 case "EXTRACT":
-                    System.out.println("extracting");
+                    idxMan.exportIndexToFile();
                     break;
 
                 case "QUIT":
