@@ -26,9 +26,16 @@
   offset during each recruive search functionc call.
 
 ### 12/7/2024 3:28pm MAJOR BUGFIX
-  Fixed previous bug by changing offset from blockID * 512 to (blockID - 1) * 512. Changes have been committed, and this completes the search     functionality.
-
+  Fixed previous bug by changing offset from blockID * 512 to (blockID - 1) * 512. Changes have been committed, and this completes the search functionality.
 
 ## 12/7/2024 5:55pm SESSION 3
   Took a break, will attempt to finish project this session. Just need to implement load and extract features, as well as finish some input validation
   checks.
+  
+## 12/7/2024 7:25pm FINAL COMMIT
+  Adding my final commit after this entry. Added both load and extract functionalty, and implemented input validation everywhere I could find that needed it. As far as final thoughts about my program:
+  I only created two classes, the Menu and the IndexManger, where the latter contains all functionalties relating to the index file. If I were to do this again, I would take more time at the beginning
+  to divide up the methods further into more specialized classes, which would have allowed for easier debugging. There are only two bugs that I know about, one major and one minor. The major bug refers
+  to the extract method only extracting data from the final block. I feel the solution to this lies once again the in offset calculations for reading each pair from the file, but I was unsuccessful in
+  correcting the error. The minor bug refers to printing an empty index, which correctly prints the header of the file, but then prints a ghost block one with a garbage block id. I feel as 90% of the
+  functionalties work correctly.
